@@ -1,0 +1,703 @@
+#include "codegenerator.h"
+
+/*全局变量区*/
+Opcode tempCode;	//必须使用全局的变量，保证要写入的文件只打开一次
+Labelcode tempLabel;
+string fun_label;	//静态变量
+string funName;		//本地函数名字
+string claName;		//变成全局变量
+int seqInit;		//第几次生成虚函数
+fun_symbol fs;
+var_symbol vs;
+obj_symbol os;
+class_symbol cs;
+bool ifHelloWorld=false;
+/*参数占位符，真实参数在语法分析器中获取*/
+int statetype;
+string arg1,arg2,arg3,arg4;
+int vfcount=0;
+int labelcount=0;
+string vf_funname_fromsys;	//遍历获得的虚函数的名字
+
+struct str_hash{
+	size_t operator()(const string& str) const
+	{
+		return __stl_hash_string(str.c_str());
+	}
+};
+/*引用的外部变量区*/
+extern hash_map<string,fun_symbol,str_hash> fun_map;
+extern hash_map<string,var_symbol,str_hash> var_map;		//变量的hash表索引
+extern hash_map<string,class_symbol,str_hash> class_map;	//类的hash表索引
+extern hash_map<string,obj_symbol,str_hash> obj_map;		//对象的hash表索引
+/*生成下一条指令*/
+void
+Code::genNextCode(Opcode &tempCode)
+{
+	c_file<<"	"<<tempCode.op<<" "<<tempCode.arg1<<" "<<tempCode.arg2<<" "<<tempCode.arg3<<" "<<tempCode.arg4<<endl;
+}
+/*清除上一条指令*/
+void
+Code::clearTempCode(Opcode &tempCode)
+{
+	if(tempCode.op!="" || tempCode.arg1!="" || tempCode.arg2!="" || tempCode.arg3!="")
+	{
+		tempCode.op="";
+		tempCode.arg1="";
+		tempCode.arg2="";
+		tempCode.arg3="";
+		tempCode.arg4="";
+	}
+}
+/*生成下一条指令，并加入到指令列表里*/
+void
+Code::genLabel(Labelcode &tempLabel)
+{
+	c_file<<tempLabel.label1<<" "<<tempLabel.label2<<endl;
+}
+/*清除上一条指令*/
+void
+Code::clearLabel(Labelcode &tempLabel)
+{
+	if(tempLabel.label1!="" || tempLabel.label2!="")
+	{
+		tempLabel.label1="";
+		tempLabel.label2="";
+	}
+}
+/*生成数据段*/
+void
+Code::DealLabel(bool ifhasClass,bool ifBigPro)
+{
+	tempLabel.label1=".section";tempLabel.label2=".data";genLabel(tempLabel);clearLabel(tempLabel);
+
+
+	tempLabel.label1=".output:";genLabel(tempLabel);clearLabel(tempLabel);
+	if(ifhasClass==true && ifBigPro==false)
+	{
+	/*数据声明特殊处理*/
+	tempLabel.label1=".ascii";tempLabel.label2="\"%s\\n\\000\"";
+	}
+	else
+	{
+	/*数据声明特殊处理*/
+	tempLabel.label1=".ascii";tempLabel.label2="\"%d\\n\\000\"";
+	}
+
+	c_file<<"	"<<tempLabel.label1<<" "<<tempLabel.label2<<endl;
+	clearLabel(tempLabel);
+	if(ifhasClass==true && ifBigPro==false)
+	{
+	tempLabel.label1=".str:";genLabel(tempLabel);clearLabel(tempLabel);
+	/*数据声明特殊处理*/
+	tempLabel.label1=".ascii";tempLabel.label2="\"hello world\"";
+
+	c_file<<"	"<<tempLabel.label1<<" "<<tempLabel.label2<<endl;
+	clearLabel(tempLabel);}
+	tempLabel.label1=".section";tempLabel.label2=".text";genLabel(tempLabel);clearLabel(tempLabel);
+}
+//end标号
+void
+Code::endProgram()
+{
+	tempLabel.label1="endmain:";genLabel(tempLabel);clearLabel(tempLabel);
+}
+/*函数栈桢处理*/
+void
+Code::initFunStack()
+{
+	tempCode.op="mov";tempCode.arg1="ip,";tempCode.arg2="sp";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="stmfd";tempCode.arg1="sp!,";tempCode.arg2="{fp,ip,lr,pc}";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="sub";tempCode.arg1="fp,";tempCode.arg2="ip,";tempCode.arg3="#4";genNextCode(tempCode);clearTempCode(tempCode);
+
+}
+void
+Code::endFunStack()
+{
+	tempCode.op="ldmea";tempCode.arg1="fp,";tempCode.arg2="{fp,sp,pc}";genNextCode(tempCode);clearTempCode(tempCode);
+}
+
+/*函数代码生成入口:按名访问*/
+void
+Code::functionPro(string fun_name_frsys)
+{
+	int ft;
+	seqInit=1;	//全局变量赋值
+	cout<<"需要进行代码生成的函数名是:"<<fun_name_frsys<<endl;
+
+	/*先遍历一遍确定是否有虚函数*/
+	hash_map<string,fun_symbol,str_hash>::iterator iter9=fun_map.begin();
+	for(;iter9!=fun_map.end();iter9++)
+	{
+		//依次打印函数的各个字段的符号表记录
+		fs=iter9->second;
+		/*是否有虚函数*/
+		if(fs.fun_type==2)
+		{
+			ifHasVf=true;				//设定含有虚函数的标记
+			vf_funname_fromsys=fs.fun_name;		//获取虚函数的名字
+			if((fs.belongClass).compare("CS"))
+			{
+				/*函数的类型修改为:2*/
+				fs.fun_type=2;
+			}
+			/*修正一下*/
+			cout<<"此C++源程序中有虚函数，设定标记，获取虚函数名"<<endl;
+		}
+
+	}
+
+	/*再遍历进行代码生成的部分*/
+	hash_map<string,fun_symbol,str_hash>::iterator iter;
+
+	if(!fun_name_frsys.compare(""))
+	{
+		cout<<"未能正确获取函数的名字"<<endl;
+		exit(-1);
+	}
+	if(fun_map.find(fun_name_frsys)==fun_map.end())
+	{
+		cout<<"符号表中没有这个函数的条目"<<endl;
+	}
+	else
+	{
+		iter=fun_map.find(fun_name_frsys);
+
+		fs=iter->second;
+		/*是否有虚函数*/
+		if(fs.fun_type==2)
+		{
+			ifHasVf=true;	//这是类的成员变量
+			cout<<"此C++源程序中有虚函数，需要初始化虚函数表"<<endl;
+		}
+		/*接口区*/
+		ft=fs.fun_type;			//获取函数类型
+		funName=fs.fun_name;		//获取函数名
+
+		if(!funName.compare("main"))
+			claName="";
+		else
+			claName=fs.belongClass;	//获取所属类名
+
+		/*生成函数标号*/
+		if(fs.ifHasPara==false)
+		{
+			/*main函数处理*/
+			if(!funName.compare("main"))
+			{
+				tempLabel.label1="	.global";tempLabel.label2="main";genLabel(tempLabel);clearLabel(tempLabel);
+				tempLabel.label1=funName+":";genLabel(tempLabel);clearLabel(tempLabel);
+			}
+			else
+			{
+					if(!funName.compare("TotalNum"))
+					{
+						if(labelcount==0)
+						{
+							labelcount++;
+						}
+						else
+						{
+							claName="CS";
+						}
+					}
+					fun_label=claName+"_"+funName+"_void:";
+					/*将字符串中的大写字母转换成小写字母*/
+					transform(fun_label.begin(),fun_label.end(),fun_label.begin(),(int (*)(int))tolower);
+				
+					tempLabel.label1=fun_label;genLabel(tempLabel);clearLabel(tempLabel);
+			}
+		}
+		else
+		{
+				fun_label=claName+"_"+funName+"_int_int:";
+				/*将字符串中的大写字母转换成小写字母*/
+				transform(fun_label.begin(),fun_label.end(),fun_label.begin(),(int (*)(int))tolower);
+				tempLabel.label1=fun_label;genLabel(tempLabel);clearLabel(tempLabel);
+		}
+		/******************下面进行对应的代码生成过程********************************/
+		initFunStack();			/*----------初始化函数栈桢----------*/
+		/*根据函数类型进行代码生成:填充特定的函数头部*/
+		switch(ft)
+		{
+			case 0:
+				initFunctionPro();
+				break;
+			case 1:
+				memberFunctionPro();
+				break;
+			case 2:
+				virtualFunctionPro();
+				break;
+			case 3:
+				mainFunctionPro();
+				break;
+		}
+		//endFunStack();中间要插入语句，不能直接添加函数尾/*-----------清理函数栈桢-----------*/
+		/***************************************************************************/
+	}
+}
+
+/*构造函数代码生成*/
+void Code::initFunctionPro()
+{
+	string vfName;
+	tempCode.op="sub";tempCode.arg1="sp,";tempCode.arg2="sp,";tempCode.arg3="#4";genNextCode(tempCode);clearTempCode(tempCode);
+	/*保存this指针:r1是从主函数获取的this地址*/
+	tempCode.op="str";tempCode.arg1="r1,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+	/*初始化虚函数表*/
+	if(ifHasVf==true)
+	{
+		
+		fun_label=claName+"_"+vf_funname_fromsys+"_void";
+		
+		transform(fun_label.begin(),fun_label.end(),fun_label.begin(),(int (*)(int))tolower);
+
+		tempCode.op="ldr";tempCode.arg1="r1,=";tempCode.arg2=fun_label;genNextCode(tempCode);clearTempCode(tempCode);
+		tempCode.op="str";tempCode.arg1="r1,";tempCode.arg2="[r0]";genNextCode(tempCode);clearTempCode(tempCode);
+	}
+	//需要在函数头里完成的功能，剩下的都是语句生成
+}
+
+void Code::vfSet(string objname,bool ifPoly)
+{
+	if(ifPoly==false)
+	{
+		tempCode.op="ldr";tempCode.arg1="r0,=";tempCode.arg2="-24";genNextCode(tempCode);clearTempCode(tempCode);
+		tempCode.op="sub";tempCode.arg1="r1,";tempCode.arg2="fp,";tempCode.arg3="r0";genNextCode(tempCode);clearTempCode(tempCode);
+		tempCode.op="ldr";tempCode.arg1="r2,";tempCode.arg2="[r1,#0]";genNextCode(tempCode);clearTempCode(tempCode);
+	}
+	else
+	{
+		tempCode.op="sub";tempCode.arg1="r1,";tempCode.arg2="fp,";tempCode.arg3="#-36";genNextCode(tempCode);clearTempCode(tempCode);
+		tempCode.op="str";tempCode.arg1="r1,";tempCode.arg2="[fp,#-64]";genNextCode(tempCode);clearTempCode(tempCode);
+		tempCode.op="ldr";tempCode.arg1="r2,";tempCode.arg2="[r1]";genNextCode(tempCode);clearTempCode(tempCode);
+	}
+}
+/*虚函数调用*/
+void Code::vfFunCall(string vffunname)
+{
+	string vfff;
+	if(!vffunname.compare("TotalNum"))
+	{
+		if(vfcount==0)
+		{
+			vfff="upc_totalnum_void";
+			vfcount++;
+		}
+		else
+		{
+			vfff="cs_totalnum_void";
+		}
+	}
+	/*配合其他的语句使用*/
+	tempCode.op="ldr";tempCode.arg1="r3,=";tempCode.arg2=vfff;genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="cmp";tempCode.arg1="r2,";tempCode.arg2="r3";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="bleq";tempCode.arg1=vfff;genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*成员函数代码生成*/
+void
+Code::memberFunctionPro()
+{
+	/*分配函数栈桢*/
+	tempCode.op="sub";tempCode.arg1="sp,";tempCode.arg2="sp,";tempCode.arg3="#4";genNextCode(tempCode);clearTempCode(tempCode);
+	/*保存this指针*/
+	tempCode.op="str";tempCode.arg1="r1,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*虚函数代码生成*/
+void
+Code::virtualFunctionPro()
+{
+	/*分配函数栈桢*/
+	tempCode.op="sub";tempCode.arg1="sp,";tempCode.arg2="sp,";tempCode.arg3="#4";genNextCode(tempCode);clearTempCode(tempCode);
+	/*保存this指针*/
+	tempCode.op="str";tempCode.arg1="r1,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+
+}
+void
+Code::mainFunctionPro()
+{
+	/*分配函数栈桢；计算函数栈桢大小*/
+	tempCode.op="sub";tempCode.arg1="sp,";tempCode.arg2="sp,";tempCode.arg3="#80";genNextCode(tempCode);clearTempCode(tempCode);
+	//接下来是语句代码生成
+}
+
+/*普通函数调用*/
+void
+Code::funcall(string funName)						//普通函数调用
+{
+	tempCode.op="bl";tempCode.arg1=funName;genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*通用代码生成区*/
+void Code::ifstate(string num)						//if语句
+{
+	/*默认的是将r0中的数值和立即数比较*/
+	tempCode.op="cmp";tempCode.arg1="r0,#";tempCode.arg2=num;genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*return语句*/
+void
+Code::retstate(string reg0,string reg1)					//return语句
+{
+	tempCode.op="movgt";tempCode.arg1=reg0+",";tempCode.arg2=reg1;genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*加法表达式*/
+void Code::addstate(string num)		//加法表达式
+{
+	tempCode.op="mov";tempCode.arg1="r1,#";tempCode.arg2=num;genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="add";tempCode.arg1="r2,";tempCode.arg2="r0,";tempCode.arg3="r1";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="mov";tempCode.arg1="r0,";tempCode.arg2="r2";genNextCode(tempCode);clearTempCode(tempCode);
+
+}
+/*对象创建语句:参数从符号表获取的例子，其他的仿照此改写*/
+void
+Code::objstate(string objname_frsys,string offset)	//对象创建
+{
+	string init_fun;
+	//设定偏移
+	if(!objname_frsys.compare("upc_t"))
+	{
+		offset="-24";
+		init_fun="upc_upc_int_int";
+		
+	}
+	else if(!objname_frsys.compare("cs_t"))
+	{
+		offset="-36";
+		init_fun="cs_cs_int_int";
+	}
+	else
+	{
+	}
+	tempCode.op="ldr";tempCode.arg1="r0,=";tempCode.arg2=offset;genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="sub";tempCode.arg1="r1,";tempCode.arg2="fp,";tempCode.arg3="r0";genNextCode(tempCode);clearTempCode(tempCode);
+	hash_map<string,obj_symbol,str_hash>::iterator iter;
+	cout<<"对象相关信息"<<objname_frsys<<" "<<offset<<endl;
+	//迭代器走到最后了，才说明找不到，而不是不等域	
+	if(obj_map.find(objname_frsys)==obj_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter=obj_map.find(objname_frsys);
+		os=iter->second;
+		if(os.paranum>0 && ifHelloWorld==false)
+		{
+			/*压参数*/
+			tempCode.op="ldr";tempCode.arg1="r0,=";tempCode.arg2=os.para2;genNextCode(tempCode);clearTempCode(tempCode);
+			tempCode.op="stmfd";tempCode.arg1="sp!,";tempCode.arg2="{r0}";genNextCode(tempCode);clearTempCode(tempCode);
+			tempCode.op="ldr";tempCode.arg1="r0,=";tempCode.arg2=os.para1;genNextCode(tempCode);clearTempCode(tempCode);
+			tempCode.op="stmfd";tempCode.arg1="sp!,";tempCode.arg2="{r0}";genNextCode(tempCode);clearTempCode(tempCode);
+			
+			tempCode.op="bl";tempCode.arg1=init_fun;genNextCode(tempCode);clearTempCode(tempCode);
+			/*栈指针恢复：8*/
+			tempCode.op="add";tempCode.arg1="sp,";tempCode.arg2="sp,";tempCode.arg3="#8";genNextCode(tempCode);clearTempCode(tempCode);
+		}
+		else
+		{
+			cout<<"参数信息不完整，请重新检查程序的合法性"<<endl;
+		}
+	}
+	//如果这个对象符号名是hw
+	if(!objname_frsys.compare("hw"))
+	{
+		tempCode.op="bl";tempCode.arg1="helloworld_helloworld_void";genNextCode(tempCode);clearTempCode(tempCode);
+	}
+}
+/*支持多态的对象创建*/
+void
+Code::ptrequstate(string thisoffset,string ptroffset)	//多态赋值
+{
+
+	tempCode.op="sub";tempCode.arg1="r1,";tempCode.arg2="fp,#";tempCode.arg2=thisoffset;genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="str";tempCode.arg1="r1,[fp,#";tempCode.arg2=ptroffset;tempCode.arg3="]";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="ldr";tempCode.arg1="r2,";tempCode.arg2="[r1]";genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*输出语句*/
+void Code::coutstate(string offset)
+{
+	/*调用printf*/
+	tempCode.op="str";tempCode.arg1="r0,[fp,#";tempCode.arg2=offset;tempCode.arg3="]";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="=.output";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="ldr";tempCode.arg1="r1,[fp,#";tempCode.arg2=offset;tempCode.arg3="]";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="bl";tempCode.arg1="printf";genNextCode(tempCode);clearTempCode(tempCode);
+}
+//构造函数里的赋值语句
+void Code::classAssignState(string rvar,string lvar)
+{
+	cout<<"左边变量："<<lvar<<"右边变量："<<rvar<<endl;
+	hash_map<string,var_symbol,str_hash>::iterator iter;
+	if(var_map.find(lvar)==var_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter=var_map.find(lvar);
+		vs=iter->second;
+		string varoffset;
+		if(!(vs.var_name).compare("stuNum")|| !(vs.var_name).compare("csStuNum"))
+		{
+			varoffset="4";
+		}
+		else if(!(vs.var_name).compare("teaNum") || !(vs.var_name).compare("csTeaNum"))	
+		{
+			varoffset="8";	
+		}
+		else
+		{
+		}		
+				tempCode.op="ldr";tempCode.arg1="r2,";tempCode.arg2="[r0,#";tempCode.arg3=varoffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="ldr";tempCode.arg1="r3,";tempCode.arg2="[fp,#";tempCode.arg3=varoffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="str";tempCode.arg1="r3,";tempCode.arg2="[r0,#";tempCode.arg3=varoffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+	}
+}
+
+void Code::classIfState(string lvar,string num)
+{
+	hash_map<string,var_symbol,str_hash>::iterator iter;
+	if(var_map.find(lvar)==var_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter=var_map.find(lvar);
+		vs=iter->second;
+		string varoffset;
+		if(!(vs.var_name).compare("stuNum")|| !(vs.var_name).compare("csStuNum"))
+		{
+			varoffset="4";
+		}
+		else if(!(vs.var_name).compare("teaNum") || !(vs.var_name).compare("csTeaNum"))	
+		{
+			varoffset="8";	
+		}
+		else
+		{
+		}		
+				tempCode.op="ldr";tempCode.arg1="r2,";tempCode.arg2="[r1,#";tempCode.arg3=varoffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="cmp";tempCode.arg1="r2,#";tempCode.arg2=num;genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="movgt";tempCode.arg1="r0,";tempCode.arg2="r2";genNextCode(tempCode);clearTempCode(tempCode);
+
+	}
+}
+void Code::classAddState(string ladd,string radd)	//类里的加法函数
+{
+	string loffset;
+	string roffset;
+	hash_map<string,var_symbol,str_hash>::iterator iter;
+	if(var_map.find(ladd)==var_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter=var_map.find(ladd);
+		vs=iter->second;
+		
+		if(!(vs.var_name).compare("stuNum")|| !(vs.var_name).compare("csStuNum"))
+		{
+			loffset="4";
+		}
+	}
+	hash_map<string,var_symbol,str_hash>::iterator iter1;
+	if(var_map.find(radd)==var_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter1=var_map.find(radd);
+		vs=iter1->second;
+		
+		if(!(vs.var_name).compare("teaNum")|| !(vs.var_name).compare("csTeaNum"))
+		{
+			roffset="8";
+		}
+	}
+tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);	tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[r0,#";tempCode.arg3=loffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="ldr";tempCode.arg1="r1,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="ldr";tempCode.arg1="r1,";tempCode.arg2="[r1,#";tempCode.arg3=roffset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="add";tempCode.arg1="r2,";tempCode.arg2="r0,";tempCode.arg3="r1";genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="mov";tempCode.arg1="r0,";tempCode.arg2="r2";genNextCode(tempCode);clearTempCode(tempCode);
+}
+
+/*类的成员函数调用规则*/
+void Code::classFuncCall(string objname,string funname)
+{
+	string offset;
+	string calledFun;
+	//设定偏移
+	if(!objname.compare("upc_t") && !funname.compare("StuNum"))
+	{
+		offset="-24";
+		calledFun="upc_stunum_void";
+	}
+	else if(!objname.compare("upc_t") && !funname.compare("TeaNum"))
+	{
+		offset="-24";
+		calledFun="upc_teanum_void";
+	}
+	else if(!objname.compare("cs_t") && !funname.compare("StuNum"))
+	{
+		offset="-36";
+		calledFun="cs_stunum_void";
+	
+	}
+	else if(!objname.compare("cs_t") && !funname.compare("TeaNum"))
+	{
+		offset="-36";
+		calledFun="cs_teanum_void";
+	}
+	else
+	{
+	}
+	cout<<"对象是："<<objname<<"函数名是："<<funname<<endl;
+	
+	tempCode.op="ldr";tempCode.arg1="r0,=";tempCode.arg2=offset;genNextCode(tempCode);clearTempCode(tempCode);
+tempCode.op="sub";tempCode.arg1="r1,";tempCode.arg2="fp,";tempCode.arg3="r0";genNextCode(tempCode);clearTempCode(tempCode);
+/*将r0去掉*/
+tempCode.op="bl";tempCode.arg1=calledFun;genNextCode(tempCode);clearTempCode(tempCode);
+}
+
+/*
+赋值语句
+@offset:变量的偏移
+@num：赋值的立即数
+*/
+void Code::assignstate(string num)			//赋值语句
+{
+	/*将保存在寄存器中的值store到变量中*/
+	tempCode.op="mov";tempCode.arg1="r3,";tempCode.arg2="#";tempCode.arg3=num;genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="mov";tempCode.arg1="r0,";tempCode.arg2="r3";genNextCode(tempCode);clearTempCode(tempCode);
+}
+/*变量构造:参数从符号表获取的例子，其他的仿照此改写*/
+void
+Code::varstate(string varname_frsys)					//变量构造
+{
+	hash_map<string,var_symbol,str_hash>::iterator iter;
+	if(var_map.find(varname_frsys)==var_map.end())
+	{
+		cout<<"符号表中没有这个对象的条目"<<endl;
+	}
+	else
+	{
+		iter=var_map.find(varname_frsys);
+		vs=iter->second;				tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[fp,#";tempCode.arg3=vs.offset;tempCode.arg4="]";genNextCode(tempCode);clearTempCode(tempCode);
+
+	}
+}
+
+/*while语句*/
+void
+Code::whilestate(string cmpNum)					//while语句
+{
+	tempLabel.label1="loop:";genLabel(tempLabel);clearLabel(tempLabel);
+	ifstate(cmpNum);
+	tempCode.op="bge";tempCode.arg1="stop";genNextCode(tempCode);clearTempCode(tempCode);
+	//tempCode.op="blle";tempCode.arg1="loop";genNextCode(tempCode);clearTempCode(tempCode);
+	/*如果小于被比较数，则跳转到结束处，否则继续执行剩下的语句*/
+	//tempCode.op="blgt";tempCode.arg1="endmain";genNextCode(tempCode);clearTempCode(tempCode);
+}
+void Code::jmp()
+{
+	tempCode.op="b";tempCode.arg1="loop";genNextCode(tempCode);clearTempCode(tempCode);
+	tempLabel.label1="stop:";genLabel(tempLabel);clearLabel(tempLabel);
+}
+
+/*
+根据语句类型进行对应的代码生成
+@stateType:语句类型
+
+	NORMALFUNCALL,	//普通函数调用语句
+	VFFUNCALL,	//虚函数调用
+	IFSTATE,	//if语句
+	ADDSTATE,	//add语句
+	OBJSTATE,	//对象创建
+	PTREQUSTATE,	//多态赋值
+	COUTSTATE,	//输出语句
+	ASSIGNSTATE,	//赋值语句
+	WHILESTATE	//while语句
+*/
+/*根据语句类型进行对应的代码生成*/
+void
+Code::statement(int stateType,string arg1,string arg2,string arg3,string arg4)
+{
+	switch(stateType)
+	{
+		case NORMALFUNCALL:
+			funcall(arg1);
+		break;
+		case VFFUNCALL:
+			vfFunCall(arg1);
+		break;
+		case IFSTATE:
+			ifstate(arg1);
+		break;
+		case ADDSTATE:
+			//注意这里的参数设置
+			addstate(arg2);
+		break;
+		case PTREQUSTATE:
+			ptrequstate(arg1,arg2);
+		break;
+		case OBJSTATE:
+			objstate(arg1,arg2);
+		break;
+		case ASSIGNSTATE:
+			assignstate(arg1);
+		break;
+		case WHILESTATE:
+			whilestate(arg1);
+		break;
+		case COUTSTATE:
+			coutstate(arg1);
+		break;
+		case VARSTATE:
+			varstate(arg1);
+		break;
+		default:
+			cout<<"代码生成出错了"<<endl;
+	}
+}
+void Code::stringAssign()
+{
+	/*ldr r0,[r0,#0]
+	ldr r0,=.str*/
+	tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[r0,#0]";genNextCode(tempCode);clearTempCode(tempCode);
+	tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="=.str";genNextCode(tempCode);clearTempCode(tempCode);
+}
+
+void Code::strReg()
+{
+tempCode.op="str";tempCode.arg1="r0,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+}
+void Code::ldrReg()
+{
+tempCode.op="ldr";tempCode.arg1="r0,";tempCode.arg2="[fp,#-16]";genNextCode(tempCode);clearTempCode(tempCode);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

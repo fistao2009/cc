@@ -1,0 +1,20 @@
+void hanoi(string a,string b,string c,int n);
+
+int main()
+{
+	int n;
+	cout<<"intput the plate num"<<endl;
+	cin>>n;
+	hanoi("A","B","C",n);
+	return 0;
+}
+void hanoi(string a,string b,string c,int n)
+{
+	if(n==0)
+	{
+		return;
+	}
+	hanoi(a,c,b,n-1);
+	cout<<"Move "+n+" "+a+" -> "+c+" ";
+	hanoi(b,a,c,n-1);
+}

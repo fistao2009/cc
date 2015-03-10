@@ -1,0 +1,70 @@
+<program>	->	<classdecl>|<vardecl>|<funcdecl>|<objectdecl>|<comment>
+
+<classdecl>	->	rsv_class <idvar>{:rsv_public|rsv_private <idvar>}lblock{rsv_public|rsv_private:}
+			<vardecl>|{virtual}<funcdecl>{<chunkstatement>}|semic rblock semic
+<vardecl>	->	<type> <idvar>{comma <idvar>}semic
+<funcdecl>	->	{<type>}{<idvar>scopeop}<idvar>lbrack<paramlist>rbrack semic|<chunkstatement>
+<objdecl>	->	<idvar> {rsv_addr|rsv_pointer}<idvar>{lbrack<realparmlist>rbrack}semic
+<comment>	->	comment <idvar> comment 
+
+<type>		->	rsv_int|rsv_void
+<paramlist>	->	<type> <idvar>{comma<type> <idvar>}|rsv_void
+<chunkstatement>->	lblock<vardecl>|<statement>rblock
+
+<statement>	->	<expression>|<ifstate>|<whilestate>|<returnstate>|<cinstate>|<coutstate> semic
+<ifstate>	->	rsv_if lbrack <expression> rbrack<statement>{rsv_else <statement>}
+<whilestate>	->	rsv_while lbrack <expression> rbrack <statement>
+<returnstate>	->	rsv_return <expression>
+<cinstate>	->	rsv_cin rsv_dbigger <idvar>
+<coutstate>	->	rsv_cout rsv_dless <expression>
+
+<expression>	->	<idvar>{rsv_equal<expression>}|<compoundstate> semic
+<compoundstate>	->	<calacop><relop><calacop> 
+<calacop>	->	<operater>{rsv_add|rsv_sub <operator>}
+<relop>		->	bthan|lthan|bethan|letha|equal|nequal
+
+<operator>	->	<idvar>|<funccall>
+<funccall>	->	<idvar>rsv_dotop|rsv_pointer<idvar>lbrack<realparalist>rbrack
+<realparalist>	->	<idvar>{comma<idvar>}
+<idvar>		->	id_word|const_value
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

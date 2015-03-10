@@ -1,0 +1,5 @@
+.section .data
+.output: 
+	.ascii "%s\n\000"
+.section .text
+

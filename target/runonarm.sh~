@@ -1,0 +1,5 @@
+#!/bin/sh
+echo "run the command of runing code.s on arm"
+arm-linux-gcc -g code.s -o code -static
+qemu-arm ./code
+echo "finish this progarm"

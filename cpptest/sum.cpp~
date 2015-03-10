@@ -1,0 +1,21 @@
+class Sum
+{
+public:
+	Sum(int a,int b)
+	{
+		m=a;
+		n=b;
+	}
+	int sumadd()
+	{
+		return m+n;
+	}
+private:
+	int m;
+	int n;
+};
+int main()
+{
+	Sum s(2,10);
+	cout<<"the sum of a and b is "<<s.sumadd()<<endl;
+}

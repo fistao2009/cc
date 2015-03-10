@@ -1,0 +1,71 @@
+#ifndef LEX_H
+#define LEX_H
+
+#include "token.h"			//单词类型头文件
+#include<iostream>
+#include<fstream>
+#include<string>
+#include<vector>
+using namespace std;
+
+/*常量定义区*/
+#define BUFFERSIZE 100
+
+/*词法分析器类定义*/
+class Lex
+{
+public:
+
+	Lex()
+	{
+		for(int i=0;i<BUFFERSIZE;i++)
+			buffer[i]='$';	//将缓冲区初始化为$
+		lineLen=0;		//本行字符长度初始化为0
+		linenumber=0;		//源程序文件的行数初始化为0
+		readPos=0;		//缓冲区当前位置设置为0//
+		nextPos=0;		//缓冲区下一位置设置为0
+		//mycf.open("cpptest/helloworld.cpp");
+		mycf.open("cpptest/upc_people_count.cpp");
+
+		//mycf.open("cpptest/whiletest.cpp",ios::in);
+
+	//	mycf.open(_lexFileName);
+		endOfFlag=1;
+	}
+	Lex(const char *lexFileName)
+	{
+		for(int i=0;i<BUFFERSIZE;i++)
+			buffer[i]='$';	//将缓冲区初始化为$
+		lineLen=0;		//本行字符长度初始化为0
+		linenumber=0;		//源程序文件的行数初始化为0
+		readPos=0;		//缓冲区当前位置设置为0
+		nextPos=0;		//缓冲区下一位置设置为0
+	/*根据主函数中选择的测试程序编号初始化这个对象*/
+		mycf.open(lexFileName);
+	//	mycf.open(_lexFileName);
+		endOfFlag=1;
+	}
+	~Lex()
+	{
+		mycf.seekg(0, ios::beg);
+		mycf.close();
+	}
+	int	scanner();
+	Token   getToken();		//词法分析器和语法分析器的接口,识别单词类型,返回一个
+	Token   buildToken(string str,TokenType ttype,int lines);	//词法记号装配器
+	char    getCurrentChar();	//返回当前位置的字符
+	char    getNextChar();
+	char	buffer[BUFFERSIZE];	//每次读取80字节的内容，存入缓冲区
+	bool endOfFlag;			//文件是否读完标志
+
+	ifstream mycf;
+private:
+
+	int linenumber;			//行号
+	int lineLen;			//本行现有字符串长度
+	int readPos;			//缓冲区当前位置
+	int nextPos;			//缓冲区下一个位置指针
+
+
+};
+#endif

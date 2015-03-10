@@ -1,0 +1,35 @@
+1.交叉编译命令
+	arm-linux-gcc -g upc.s -o upc -static
+	qemu-arm ./upc
+2.交叉调试命令
+	qemu-arm -g 11111 upc
+	arm-linux-gdb upc target remote localhost:11111
+	si c b label/filename.s:linenum  s "i r" l x/16 0  "i f"
+	arm-linux-objdump -d disassemble
+3.反汇编命令
+	objdump -d test
+4.gdb调试命令
+	gdb exe
+	s b p whatis backtrace:打印栈桢
+	i f kill：结束当前进程
+	n l
+5.统计代码行数
+	wc -l `find ./ -name "*.cpp";find -name "*.h"`
+6.一点思考
+	通用代码生成器，根据文法。
+	错误处理、错误恢复和C++异常处理的支持。
+	中间代码生成和中间代码优化。
+	机器相关优化。
+	C++并行编译的实现，SMP和操作系统相关。
+	汇编器和链接器。
+	内核以及虚拟机实现，调试器。
+	CPU和指令集设计。
+	实现分布式操作系统。
+	分布式软件系统设计和实现，大型网站系统，后台服务器采用分布式系统。
+	智能系统，数据挖掘和机器学习系统。
+	linux内核学习底层最好的资料，gcc。
+	大规模软件架构。如eclipse,spring等项目学习架构的好材料。
+	各种系统之间的自由衔接。
+	自由之境。
+7.学、思考、实践，反复交替，不断相互促进。
+

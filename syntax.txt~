@@ -1,0 +1,88 @@
+<program>	->		<classdecl>|<vardecl>|<funcdecl>|<objectdecl>|<comment>|^
+
+<classdecl>	->		rsv_class <idvar><ifheri>
+<ifheri>	->		rsv_comma rsv_public|rsv_private <idvar>lblock rsv_public|rsv_private rsv_comma
+					<vardecl>|<memberfunction>|<initfunction>|semic rblock semic
+<ifheri>	->		lblock rsv_public|rsv_private rsv_comma <vardecl>|<memberfunction> rblock semic
+<memberfunction>->	rsv_virtual <funcdecl> <iffunchunk>
+<initfunction>	->	<idvar>lbrack<paramlist>rbrack semic|<chunkstatement>
+<iffunchunk>	->	<chunkstatement>|^
+
+<vardecl>	->		<type> <idvar><varlist>|semic
+<varlist>	->		comma <idvar>
+
+<funcdecl>	->	<type><idvar>lbrack<paramlist>rbrack semic|<chunkstatement>
+
+<objdecl>	->	<idvar> <objtype>
+<objtype>	->	rsv_addr|rsv_pointer<idvar><objifpara>
+<objtype>	->	<idvar><objifpara>
+<objifpara>	->	lbrack<realparmlist>rbrack semic
+<objifpara>	->	semic
+
+<comment>	->	backslash backslash <idvar>
+
+<type>		->	rsv_int|rsv_void
+<paramlist>	->	<type> <idvar><paralistdecl>
+<paralistdecl>	->	comma<type> <idvar>
+<paralistdecl>	->	rsv_void
+<chunkstatement>->	lblock<vardecl>|<statement>rblock
+
+<statement>	->	<expression>|<ifstate>|<whilestate>|<returnstate>|<cinstate>|<coutstate> semic
+<ifstate>	->	rsv_if lbrack <expression> rbrack<statement><ifhaselse>
+<ifhaselse>	->	rsv_else <statement>|^
+<whilestate>	->	rsv_while lbrack <expression> rbrack <statement>
+<returnstate>	->	rsv_return <expression>
+<cinstate>	->	rsv_cin rsv_dbigger <idvar>
+<coutstate>	->	rsv_cout rsv_dless <expression>
+
+<expression>	->	<idvar><compoundstate> semic
+<compoundstate>	->	<calacop><relop><calacop>
+<calacop>	->	<operater>rsv_add|rsv_sub <operator>}
+<relop>		->	bthan|lthan|bethan|letha|equal|nequal
+
+<operator>	->	<idvar>|<funccall>
+<funccall>	->	<idvar>rsv_dotop|rsv_pointer<idvar>lbrack<realparalist>rbrack
+<realparalist>	->	<idvar><realparalistdecl>
+<realparalistdecl>	comma<idvar>|^
+<idvar>		->	id_word|const_value
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
